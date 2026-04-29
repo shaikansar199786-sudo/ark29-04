@@ -355,7 +355,7 @@ export const ProjectDetails: React.FC = () => {
             {activeTab === 'timeline' && <TimelineTab project={project} user={user} />}
             {activeTab === 'quote' && <QuoteTab project={project} setQuoteTotal={setQuoteTotal} isReadOnly={user?.role === 'project_head' || user?.role === 'site_engineer'} user={user} isUsedQuote={false} />}
             {activeTab === 'used_quote' && <QuoteTab project={project} setQuoteTotal={setQuoteTotal} isReadOnly={user?.role === 'project_head' || user?.role === 'site_engineer'} user={user} isUsedQuote={true} />}
-            {activeTab === 'vendor_quta' && <InventoryTab project={project} setInventoryTotal={setInventoryTotal} />}
+            {activeTab === 'vendor_quta' && <InventoryTab key={project?.project_id} project={project} setInventoryTotal={setInventoryTotal} user={user} />}
             {activeTab === 'transport' && <ExpenseCategoryTab project={project} category="Transport" transactions={transactions} fetchTransactions={fetchTransactions} user={user} />}
             {activeTab === 'labor' && <ExpenseCategoryTab project={project} category="Labor" transactions={transactions} fetchTransactions={fetchTransactions} user={user} />}
             {activeTab === 'miscellaneous' && <ExpenseCategoryTab project={project} category="Miscellaneous" transactions={transactions} fetchTransactions={fetchTransactions} user={user} />}
@@ -1131,7 +1131,7 @@ const QuoteTab = ({ project, setQuoteTotal, isReadOnly, user, isUsedQuote }: any
         </div>
     );
 };
-const InventoryTab = ({ project, setInventoryTotal }: any) => {
+const InventoryTab = ({ project, setInventoryTotal, user }: any) => {
 
     const [vendorList, setVendorList] = useState<string[]>([]);
     const [filteredVendors, setFilteredVendors] = useState<string[]>([]);
@@ -1188,15 +1188,18 @@ const InventoryTab = ({ project, setInventoryTotal }: any) => {
     console.log("PROJECT ID:", project?.project_id);
 
     useEffect(() => {
-        fetch('http://localhost/ARK/api/controllers/vendors.php')
+        if (!project?.project_id) return;
+        
+        fetch('http://localhost/ARK/api/vendors')
             .then(res => res.json())
             .then(data => {
                 if (data.status === "success") {
+                    console.log("Global Vendors Loaded:", data.data);
                     setVendorList(data.data);
                 }
             })
-            .catch(err => console.error(err));
-    }, []);
+            .catch(err => console.error("Error fetching vendors:", err));
+    }, [project?.project_id]);
     useEffect(() => {
         const handleClick = () => {
             setFilteredVendors([]);
@@ -1440,21 +1443,29 @@ const InventoryTab = ({ project, setInventoryTotal }: any) => {
                                     <input
                                         style={inputStyle}
                                         value={item.vendor}
-                                        placeholder="Type vendor name..."
+                                        placeholder="Type vendor / customer..."
                                         onFocus={(e) => {
-                                            const value = e.target.value;
-                                            const filtered = vendorList.filter(v =>
-                                                v.toLowerCase().includes(value.toLowerCase())
+                                            const value = e.target.value.trim().toLowerCase();
+                                            const tableVendors = items.map(it => it.vendor).filter(v => v && v.trim() !== '');
+                                            const combinedList = Array.from(new Set([...vendorList, ...tableVendors]));
+                                            const filtered = combinedList.filter(v =>
+                                                v.toLowerCase().includes(value)
                                             );
-                                            setFilteredVendors(filtered.length > 0 ? filtered : vendorList);
+                                            setFilteredVendors(filtered.length > 0 ? filtered : combinedList);
                                             setActiveIndex(i);
                                         }}
                                         onClick={(e) => e.stopPropagation()}
                                         onChange={(e) => {
                                             const value = e.target.value;
                                             updateItem(i, 'vendor', value);
-                                            const filtered = vendorList.filter(v =>
-                                                v.toLowerCase().includes(value.toLowerCase())
+                                            const searchTerm = value.trim().toLowerCase();
+                                            
+                                            // Combine global list with what's currently typed in the table
+                                            const tableVendors = items.map(it => it.vendor).filter(v => v && v.trim() !== '');
+                                            const combinedList = Array.from(new Set([...vendorList, ...tableVendors]));
+                                            
+                                            const filtered = combinedList.filter(v =>
+                                                v.toLowerCase().includes(searchTerm)
                                             );
                                             setFilteredVendors(filtered);
                                             setActiveIndex(i);
@@ -1462,7 +1473,7 @@ const InventoryTab = ({ project, setInventoryTotal }: any) => {
                                     />
 
                                     {/* 🔽 DROPDOWN */}
-                                    {activeIndex === i && (filteredVendors.length > 0 || (item.vendor && !vendorList.includes(item.vendor))) && (
+                                    {activeIndex === i && (filteredVendors.length > 0 || (item.vendor.trim() && !vendorList.some(v => v.toLowerCase() === item.vendor.trim().toLowerCase()))) && (
                                         <div
                                             onClick={(e) => e.stopPropagation()}
                                             style={{
@@ -1472,11 +1483,11 @@ const InventoryTab = ({ project, setInventoryTotal }: any) => {
                                                 width: '100%',
                                                 background: '#fff',
                                                 borderRadius: '8px',
-                                                boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
-                                                border: '1px solid #e2e8f0',
+                                                boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.2), 0 8px 10px -6px rgba(0, 0, 0, 0.1)',
+                                                border: '1px solid #cbd5e1',
                                                 zIndex: 1000,
                                                 marginTop: '4px',
-                                                maxHeight: '200px',
+                                                maxHeight: '250px',
                                                 overflowY: 'auto'
                                             }}
                                         >
@@ -1484,13 +1495,17 @@ const InventoryTab = ({ project, setInventoryTotal }: any) => {
                                                 <div
                                                     key={idx}
                                                     style={{
-                                                        padding: '10px 12px',
+                                                        padding: '12px 15px',
                                                         cursor: 'pointer',
-                                                        fontSize: '0.9rem',
-                                                        borderBottom: idx === filteredVendors.length - 1 && !(!vendorList.includes(item.vendor) && item.vendor) ? 'none' : '1px solid #f1f5f9',
-                                                        transition: 'background 0.2s'
+                                                        fontSize: '0.95rem',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        gap: '8px',
+                                                        borderBottom: '1px solid #f1f5f9',
+                                                        transition: 'background 0.2s',
+                                                        color: '#334155'
                                                     }}
-                                                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f8fafc'}
+                                                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f1f5f9'}
                                                     onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
                                                     onClick={() => {
                                                         updateItem(i, 'vendor', v);
@@ -1498,51 +1513,52 @@ const InventoryTab = ({ project, setInventoryTotal }: any) => {
                                                         setActiveIndex(null);
                                                     }}
                                                 >
-                                                    🏢 {v}
+                                                    <span style={{ opacity: 0.7 }}>👤</span> {v}
                                                 </div>
                                             ))}
 
                                             {/* ➕ ADD NEW OPTION */}
-                                            {item.vendor && !vendorList.includes(item.vendor) && (
+                                            {item.vendor.trim() && !vendorList.some(v => v.toLowerCase() === item.vendor.trim().toLowerCase()) && (
                                                 <div
                                                     onClick={(e) => {
                                                         e.stopPropagation();
-                                                        // Optimization: If they click "Add New", we save it to the DB and update local list
-                                                        fetch("http://localhost/ARK/api/controllers/vendors.php", {
+                                                        const newVendor = item.vendor.trim();
+                                                        fetch("http://localhost/ARK/api/vendors", {
                                                             method: "POST",
-                                                            headers: {
-                                                                "Content-Type": "application/json"
-                                                            },
-                                                            body: JSON.stringify({
-                                                                vendor: item.vendor
+                                                            headers: { "Content-Type": "application/json" },
+                                                            body: JSON.stringify({ 
+                                                                vendor: newVendor,
+                                                                user_id: user?.user_id || 1 
                                                             })
                                                         })
-                                                            .then(res => res.json())
-                                                            .then(data => {
-                                                                if (data.status === "success") {
-                                                                    setVendorList(prev => [...prev, item.vendor]);
-                                                                    alert(`Vendor "${item.vendor}" added successfully!`);
-                                                                } else {
-                                                                    alert("Failed to add vendor: " + (data.message || "Unknown error"));
-                                                                }
-                                                            })
-                                                            .catch(err => console.error(err));
+                                                        .then(res => res.json())
+                                                        .then(data => {
+                                                            if (data.status === "success") {
+                                                                setVendorList(prev => [...prev, newVendor]);
+                                                                alert(`"${newVendor}" saved globally!`);
+                                                            }
+                                                        })
+                                                        .catch(err => console.error(err));
+                                                        
                                                         setFilteredVendors([]);
                                                         setActiveIndex(null);
                                                     }}
                                                     style={{
-                                                        padding: '12px 12px',
+                                                        padding: '14px 15px',
                                                         cursor: 'pointer',
                                                         fontSize: '0.9rem',
                                                         background: '#f0fdf4',
                                                         color: '#166534',
                                                         fontWeight: 700,
-                                                        borderTop: '1px solid #dcfce7'
+                                                        borderTop: '2px solid #bbf7d0',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        gap: '8px'
                                                     }}
                                                     onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#dcfce7'}
                                                     onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#f0fdf4'}
                                                 >
-                                                    ✨ Add New Vendor: "{item.vendor}"
+                                                    ✨ Add to Global List: "{item.vendor.trim()}"
                                                 </div>
                                             )}
                                         </div>

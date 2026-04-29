@@ -29,6 +29,7 @@ require_once 'controllers/FinanceController.php';
 require_once 'controllers/QuoteController.php';
 require_once 'controllers/DashboardController.php';
 require_once 'controllers/TimelineController.php';
+require_once 'controllers/VendorController.php';
 
 // Simple Router
 $request_uri = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
@@ -195,6 +196,14 @@ switch ($resource) {
             } elseif (isset($path_parts[1])) {
                 echo json_encode($timeline->getTimeline($path_parts[1]));
             }
+        }
+        break;
+    case 'vendors':
+        $vendorCtrl = new VendorController($conn);
+        if ($_SERVER['REQUEST_METHOD'] === 'GET') {
+            echo json_encode($vendorCtrl->getAll());
+        } elseif ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            echo json_encode($vendorCtrl->create($input));
         }
         break;
     default:
